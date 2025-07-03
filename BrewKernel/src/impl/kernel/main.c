@@ -50,7 +50,6 @@ void kernel_main() {
     // Display the Brew kernel logo and system information.
     print_set_color(PRINT_INDEX_7, PRINT_INDEX_0);
     print_str("Brew kernel v2.1\n");
-    print_str("If you are seeing this, you are officially awesome.\n");
     print_str("Copyright (C) 2024-2025 boreddevhq.\n");
     print_str("Build: ");
     print_str(__DATE__);
@@ -95,7 +94,7 @@ void kernel_main() {
     print_set_color(PRINT_INDEX_9, PRINT_INDEX_0); 
     print_str("   `----'\n\n");
     print_set_color(PRINT_INDEX_7, PRINT_INDEX_0);
-    // Print VGA color indexes 0-15
+// boot logo
     for (int i = 0; i < 16; i++) {
         print_set_color(i, i);  
         print_char(' ');       
@@ -109,7 +108,7 @@ void kernel_main() {
 
 
     // Math preview
-    print_str("Math Preview:\n");
+    print_str("Math Test:\n");
     print_str("5(25 - 52 * 10) + 32 * 50 = ");
     print_int(5 * (25 - 52 * 10) + 32 * 50);
     print_str("\n\n");
