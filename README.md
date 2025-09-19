@@ -25,7 +25,7 @@ Brew Kernel is a simple x86_64 kernel that demonstrates basic OS concepts. It fe
   - UPTIME - Show system uptime
   - EXIT - Return to regular typing mode
 
-
+# either follow the instructions below, or follow the [user manual](https://brew.boreddev.nl/manual.html)
 ## Prerequisites
 
 To build the kernel, you'll need Docker installed on your system. The build environment is containerized to ensure consistency across different systems.
