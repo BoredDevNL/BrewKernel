@@ -81,7 +81,6 @@ Or run Brew on actual hardware. </br>
     Enable legacy boot in your BIOS
 - Step 5:
     Insert the flashed USB Drive and boot using the legacy boot option **NOT UEFI**. </br>
-    **Important Notice: You can only get a display output by using a VGA port for display output, anything other than VGA is NOT supported.**
 - Step 6:
     Enjoy the Brew Kernel!
 
