@@ -25,7 +25,7 @@ Brew Kernel is a simple x86_64 kernel that demonstrates basic OS concepts. It fe
   - UPTIME - Show system uptime
   - EXIT - Return to regular typing mode
 
-
+# either follow the instructions below, or follow the [user manual](https://brew.boreddev.nl/manual.html)
 ## Prerequisites
 
 To build the kernel, you'll need Docker installed on your system. The build environment is containerized to ensure consistency across different systems.
@@ -81,7 +81,6 @@ Or run Brew on actual hardware. </br>
     Enable legacy boot in your BIOS
 - Step 5:
     Insert the flashed USB Drive and boot using the legacy boot option **NOT UEFI**. </br>
-    **Important Notice: You can only get a display output by using a VGA port for display output, anything other than VGA is NOT supported.**
 - Step 6:
     Enjoy the Brew Kernel!
 
@@ -124,7 +123,6 @@ Or run Brew on actual hardware. </br>
 - Automatic line wrapping for long text
 - Color attributes for foreground and background
 - Scroll support for long documents (license, manual)
-- Command history buffer (current command)
 
 ### Integer Output Support
 
@@ -201,7 +199,7 @@ Basic IDT setup with handlers for:
   - Displays hours, minutes, and seconds
   - Handles day wraparound
 
-### any of the above could be outdated, refer to the MANUAL (MAN command in CLI) for updated information.
+### any of the above could be outdated, refer to the MANUAL (MAN command in CLI) or the [online user manual](https://brew.boreddev.nl/manual.html) for updated information.
 
 
 
