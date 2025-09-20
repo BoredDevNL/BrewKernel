@@ -31,6 +31,7 @@
 #include "APPS/man.h"
 #include "APPS/license.h"
 #include "APPS/uptime.h"
+#include "APPS/doom.h"
 
 // String comparison function for kernel
 static int strcmp_kernel(const char *s1, const char *s2) {
@@ -180,6 +181,9 @@ static void process_command(void) {
     else if (strcmp_kernel(cmd_upper, "UPTIME") == 0) {
         display_uptime();
     }
+    else if (strcmp_kernel(cmd_upper, "DOOM") == 0) {
+        doom();
+    }    
     else if (strcmp_kernel(cmd_upper, "CLEAR") == 0) {
         print_clear();
     }

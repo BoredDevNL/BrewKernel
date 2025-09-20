@@ -60,6 +60,7 @@ const char* manual_pages[] = {
     "      The screen will be cleared and the welcome message reprinted.",
     "",
     "UPTIME: Shows how long the system has been running since boot.",
+    "DOOM: omg DOOM?!",
     "--- End of Manual ---"
 };
 const int manual_num_lines = sizeof(manual_pages) / sizeof(char*);
