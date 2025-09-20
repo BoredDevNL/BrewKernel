@@ -3,6 +3,7 @@
     "files.associations": {
         "doom.h": "c",
         "blind.h": "c",
-        "readtheman.h": "c"
+        "readtheman.h": "c",
+        "about.h": "c"
     }
 }
