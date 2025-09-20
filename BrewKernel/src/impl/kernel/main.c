@@ -65,6 +65,9 @@ void brewing(int iterations) {
         __asm__ __volatile__("nop");
     }
 }
+void clistart(){
+    brew_str("BrewKernel CLI v1.1\nType HELP for a list of available commands.\n");
+}
 
 
 // Function to store command in history
@@ -173,12 +176,12 @@ static void process_command(void) {
     else if (strcmp_kernel(cmd_upper, "MAN") == 0) {
         show_manual();
         print_clear();
-        brew_str("BrewKernel CLI v1.0\nType HELP for a list of available commands.\n");
+        clistart();
     }
     else if (strcmp_kernel(cmd_upper, "LICENSE") == 0) {
         show_license();
         print_clear();
-        brew_str("BrewKernel CLI v1.0\nType HELP for a list of available commands.\n");
+        clistart();
     }
     else if (strcmp_kernel(cmd_upper, "UPTIME") == 0) {
         display_uptime();
@@ -344,7 +347,7 @@ void kernel_main() {
         brew_str("\n\n");
 
 
-    
+    brew_str("Welcome to Brew kernel!\n");
     brew_str("Type 'CLI' and press Enter to start the command line interface...\n");
     brew_str("> ");
     print_enable_cursor();  // Enable the hardware cursor
@@ -384,8 +387,7 @@ void kernel_main() {
                             if (strcmp_kernel(cmd_upper, "CLI") == 0) {
                                 in_cli_mode = 1;
                                 print_clear();
-                                brew_str("BrewKernel CLI v1.0\n");
-                                brew_str("Type HELP for a list of available commands.\n\n");
+                                clistart();
                                 brew_str("> ");
                                 buffer_pos = 0;
                             } else {
