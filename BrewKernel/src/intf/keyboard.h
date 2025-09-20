@@ -7,6 +7,10 @@
 #define SCAN_CODE_LEFT_SHIFT_RELEASE  0xAA
 #define SCAN_CODE_RIGHT_SHIFT_RELEASE 0xB6
 
+// Special key scan codes
+#define SCAN_CODE_UP_ARROW    0x48
+#define SCAN_CODE_DOWN_ARROW  0x50
+
 // Check if a key is available to read
 // Returns 1 if a key is available, 0 otherwise
 extern int check_keyboard(void);
@@ -22,6 +26,12 @@ extern char scan_code_to_ascii(unsigned char scan_code);
 // Get the current state of the shift key
 // Returns 1 if shift is pressed, 0 otherwise
 extern int is_shift_pressed(void);
+
+// Check if a scan code is for a special key (arrows, etc)
+// Returns 1 if it's a special key, 0 otherwise
+static inline int is_special_key(unsigned char scan_code) {
+    return scan_code == SCAN_CODE_UP_ARROW || scan_code == SCAN_CODE_DOWN_ARROW;
+}
 
 void brewing(int iterations);
 

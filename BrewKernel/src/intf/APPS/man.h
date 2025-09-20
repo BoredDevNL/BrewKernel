@@ -31,6 +31,8 @@ const char* manual_pages[] = {
     "interface. Once in the CLI, you can type commands followed by Enter.",
     "Commands are case-insensitive.",
     "",
+    "== Special Keys ==",
+    "* Up/down arrow keys, scrolls through command history. (CLI mode only)",
     "== Available Commands ==",
     "HELP: Displays a short list of available commands.",
     "",

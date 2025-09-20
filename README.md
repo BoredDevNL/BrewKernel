@@ -151,6 +151,7 @@ Basic IDT setup with handlers for:
 - ASCII character mapping with support for printable characters
 - Key repeat rate control for smooth typing experience
 - Hardware cursor support with enable/disable functionality
+- Up/Down arrows for command history
 
 ### Real-Time Clock & Timezone Support
 

@@ -45,6 +45,13 @@ static int strcmp_kernel(const char *s1, const char *s2) {
 static char command_buffer[256];
 int buffer_pos = 0;
 
+// Command history
+#define HISTORY_SIZE 10
+static char command_history[HISTORY_SIZE][256];
+static int history_count = 0;      // Number of commands in history
+static int history_current = -1;    // Current position in history while navigating
+static int history_newest = -1;     // Index of the most recent command
+
 static int in_cli_mode = 0;
 static int timezone_offset_h = 0;
 static int timezone_offset_m = 0;
@@ -57,18 +64,85 @@ void brewing(int iterations) {
 }
 
 
+// Function to store command in history
+static void store_command_in_history(const char *cmd) {
+    if (cmd[0] == '\0') return;  // Don't store empty commands
+    
+    // Move to next position in circular buffer
+    history_newest = (history_newest + 1) % HISTORY_SIZE;
+    
+    // Copy command to history
+    int i;
+    for (i = 0; cmd[i] && i < 255; i++) {
+        command_history[history_newest][i] = cmd[i];
+    }
+    command_history[history_newest][i] = '\0';
+    
+    // Update history count
+    if (history_count < HISTORY_SIZE) {
+        history_count++;
+    }
+    
+    // Reset navigation
+    history_current = -1;
+}
 
-
-// --- License Viewer ---
-
-
-
-
+// Function to navigate and display command from history
+static void navigate_history(int direction) {
+    if (history_count == 0) return;
+    
+    // Save current command if we're just starting to navigate
+    if (history_current == -1) {
+        command_buffer[buffer_pos] = '\0';
+    }
+    
+    // Update current position
+    if (direction > 0) {  // Moving forward (down arrow)
+        if (history_current > 0) {
+            history_current--;
+        } else {
+            history_current = -1;  // Return to current command
+        }
+    } else {  // Moving backward (up arrow)
+        if (history_current < history_count - 1) {
+            if (history_current == -1) {
+                history_current = 0;
+            } else {
+                history_current++;
+            }
+        }
+    }
+    
+    // Clear current line
+    while (buffer_pos > 0) {
+        print_backspace();
+        buffer_pos--;
+    }
+    
+    // If we're back at the current command
+    if (history_current == -1) {
+        return;
+    }
+    
+    // Calculate actual index in circular buffer
+    int index = (history_newest - history_current + HISTORY_SIZE) % HISTORY_SIZE;
+    
+    // Copy and display command from history
+    int i;
+    for (i = 0; command_history[index][i]; i++) {
+        command_buffer[i] = command_history[index][i];
+        print_char(command_history[index][i]);
+    }
+    buffer_pos = i;
+}
 
 // Function to process CLI commands
 static void process_command(void) {
     // Null terminate the command string
     command_buffer[buffer_pos] = '\0';
+    
+    // Store command in history
+    store_command_in_history(command_buffer);
     
     // Convert command to uppercase for comparison
     char cmd_upper[256];
@@ -170,6 +244,7 @@ static void process_command(void) {
 
         // Print CLI instruction
         brew_str("Type 'CLI' and press Enter to start the command line interface...\n");
+        brew_str("> ");
         buffer_pos = 0;
         return;
     } else if (buffer_pos > 0) {
@@ -266,12 +341,16 @@ void kernel_main() {
         if (check_keyboard()) {
             unsigned char scan_code = read_scan_code();
             
-            // Check for backspace key directly (scan code 0x0E)
-            if (scan_code == 0x0E) {
+            // Handle special keys
+            if (scan_code == 0x0E) {  // Backspace
                 if (buffer_pos > 0) {
                     buffer_pos--;
                     print_backspace();
                 }
+            } else if (scan_code == SCAN_CODE_UP_ARROW && in_cli_mode) {
+                navigate_history(-1);  // Navigate backwards in history
+            } else if (scan_code == SCAN_CODE_DOWN_ARROW && in_cli_mode) {
+                navigate_history(1);   // Navigate forwards in history
             } else {
                 // Convert scan code to ASCII and print if it's a printable character
                 char ascii_char = scan_code_to_ascii(scan_code);
@@ -305,6 +384,8 @@ void kernel_main() {
                             process_command();
                         }
                     } else if (buffer_pos < sizeof(command_buffer) - 1) {
+                        // Reset history navigation when typing a new character
+                        history_current = -1;
                         command_buffer[buffer_pos++] = ascii_char;
                         print_char(ascii_char);
                     }
