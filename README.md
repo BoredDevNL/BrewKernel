@@ -123,7 +123,6 @@ Or run Brew on actual hardware. </br>
 - Automatic line wrapping for long text
 - Color attributes for foreground and background
 - Scroll support for long documents (license, manual)
-- Command history buffer (current command)
 
 ### Integer Output Support
 
