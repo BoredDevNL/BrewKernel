@@ -1,9 +1,0 @@
-{
-    "C_Cpp.errorSquiggles": "disabled",
-    "files.associations": {
-        "doom.h": "c",
-        "blind.h": "c",
-        "readtheman.h": "c",
-        "about.h": "c"
-    }
-}
