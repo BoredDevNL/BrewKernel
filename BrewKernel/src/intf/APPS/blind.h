@@ -25,6 +25,7 @@ static void blindme() {
     print_clear();
     brew_str("Woah.. is this heaven?\n");
     brew_str("no.\n");
+    brew_str("This isn't TempleOS you fucking retard.\n");
 
 
 }
