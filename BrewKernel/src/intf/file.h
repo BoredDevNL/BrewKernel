@@ -19,7 +19,6 @@ typedef struct File {
     size_t content_size;    // Size of content (0 for directories)
 } File;
 
-// File operations
 File* create_file(const char* name, char type);
 void cleanup_filesystem(void);
 bool file_write_content(File* file, const char* content, size_t size);

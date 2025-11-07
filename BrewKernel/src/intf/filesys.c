@@ -37,26 +37,22 @@ static char current_path[256] = "/";
 static File* root_dir = NULL;
 static File* current_dir = NULL;
 
-// Forward declaration for internal resolver used by fs_change_directory
 File* fs_internal_resolve_path(const char* path);
 
 void fs_init(void) {
     root_dir = create_file("/", 'd');
     current_dir = root_dir;
 
-    // Create some initial directories
     File* bin = create_file("bin", 'd');
     File* home = create_file("home", 'd');
     File* etc = create_file("etc", 'd');
     File* usr = create_file("kernel", 'd');
 
     if (bin && home && etc) {
-        // Set up parent relationships
         bin->parent = root_dir;
         home->parent = root_dir;
         etc->parent = root_dir;
 
-        // Set up children
         bin->children = NULL;
         bin->child_count = 0;
 
@@ -66,7 +62,6 @@ void fs_init(void) {
         etc->children = NULL;
         etc->child_count = 0;
 
-        // Link children to root
         root_dir->children = bin;
         bin->next_sibling = home;
         home->next_sibling = etc;
@@ -105,10 +100,8 @@ bool fs_change_directory(const char* path) {
     File* target = fs_internal_resolve_path(path);
     if (!target) return false;
 
-    // Apply the resolved directory as the current directory
     current_dir = target;
 
-    // Rebuild current_path from current_dir
     if (current_dir == root_dir) {
         current_path[0] = '/';
         current_path[1] = '\0';
@@ -138,8 +131,6 @@ bool fs_change_directory(const char* path) {
     return true;
 }
 
-// Internal path resolver. Returns pointer to directory for given path (absolute or relative),
-// or NULL if the path cannot be resolved.
 File* fs_internal_resolve_path(const char* path) {
     if (!path) return NULL;
 
@@ -148,7 +139,7 @@ File* fs_internal_resolve_path(const char* path) {
     if (p[0] == '/') {
         dir = root_dir;
         if (p[1] == '\0') return dir;
-        p++; // skip leading '/'
+        p++;
     } else {
         dir = current_dir;
     }
@@ -157,7 +148,6 @@ File* fs_internal_resolve_path(const char* path) {
     size_t pos = 0;
     size_t i = 0;
     while (p[i]) {
-        // Extract next component
         pos = 0;
         while (p[i] && p[i] != '/') {
             if (pos < sizeof(component)-1) component[pos++] = p[i];
@@ -166,18 +156,15 @@ File* fs_internal_resolve_path(const char* path) {
         component[pos] = '\0';
 
         if (pos == 0) {
-            // skip duplicate slashes
             if (p[i] == '/') i++;
             continue;
         }
 
         if (pos == 1 && component[0] == '.') {
-            // stay in same directory
         } else if (pos == 2 && component[0] == '.' && component[1] == '.') {
             if (dir->parent) dir = dir->parent;
             else return NULL;
         } else {
-            // find child directory named component
             File* child = dir->children;
             bool found = false;
             while (child) {
@@ -197,7 +184,6 @@ File* fs_internal_resolve_path(const char* path) {
     return dir;
 }
 
-// List directory at a given path (absolute or relative)
 bool fs_list_directory_at_path(const char* path) {
     File* dir = NULL;
     if (!path || path[0] == '\0') {
@@ -234,7 +220,6 @@ const char* fs_get_working_directory(void) {
     return current_path;
 }
 
-// Print the current working directory (with a trailing newline)
 void fs_print_working_directory(void) {
     if (!current_path) return;
     brew_str(current_path);
@@ -309,7 +294,6 @@ File* fs_find_file(const char* name) {
 bool fs_create_directory_at_path(const char* path) {
     if (!path) return false;
 
-    // Store the current directory to restore later
     File* original_dir = current_dir;
     const char* original_path = fs_get_working_directory();
     char original_path_copy[256];
@@ -319,23 +303,19 @@ bool fs_create_directory_at_path(const char* path) {
     }
     original_path_copy[i] = '\0';
 
-    // Handle absolute paths
     if (path[0] == '/') {
-        // Change to root directory
         current_dir = root_dir;
         current_path[0] = '/';
         current_path[1] = '\0';
-        path++; // Skip the leading '/'
+        path++; 
     }
 
-    // Parse path components
     char component[256];
     size_t start = 0;
     size_t pos = 0;
     bool success = true;
 
     while (path[start] && success) {
-        // Extract next path component
         pos = 0;
         while (path[start + pos] && path[start + pos] != '/') {
             component[pos] = path[start + pos];
@@ -344,27 +324,23 @@ bool fs_create_directory_at_path(const char* path) {
         component[pos] = '\0';
 
         if (pos > 0) {
-            // If there's more path to process, change into the directory
             if (path[start + pos] == '/') {
                 if (!fs_change_directory(component)) {
-                    // Try to create the directory and enter it
                     if (!fs_create_directory(component) || !fs_change_directory(component)) {
                         success = false;
                         break;
                     }
                 }
             } else {
-                // This is the final component - just create it
                 success = fs_create_directory(component);
                 break;
             }
         }
 
         start += pos;
-        if (path[start] == '/') start++; // Skip the slash
+        if (path[start] == '/') start++;
     }
 
-    // Restore original directory
     current_dir = original_dir;
     for (i = 0; original_path_copy[i]; i++) {
         current_path[i] = original_path_copy[i];
