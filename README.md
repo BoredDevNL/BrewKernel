@@ -3,7 +3,7 @@
 <img src="asciiart.png" width="200" /> </br>
 Brew Kernel is a simple x86_64 kernel that demonstrates basic OS concepts. It features a custom bootloader, VGA text mode output with customizable colors, a basic IDT and a basic ramdisk-like filesystem.
 
-<img src="img/Screenshot 2025-04-28 at 00.23.37.png" width="500" alt="QEMU Screenshot" /><br />
+<img src="img/brewkernel.png" width="500" alt="QEMU Screenshot" /><br />
 <sub><i>Note: This screenshot may be outdated.</i></sub>
 ## Features
 - Basic ramdisk-like filesystem
