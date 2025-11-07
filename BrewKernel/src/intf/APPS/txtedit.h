@@ -13,14 +13,14 @@
 
 #include "../print.h"
 #include "../keyboard.h"
+#include "../filesys.h"
+#include "../file.h"
 
 #define BUFFER_SIZE 4096
 #define MAX_LINES 25
 #define MAX_LINE_LENGTH 80
-#define MAX_FILES 10
-#define MAX_FILENAME 32
 
-// String comparison function for txtedit
+// Helper string functions for txtedit
 static int strcmp_txtedit(const char *s1, const char *s2) {
     while (*s1 && (*s1 == *s2)) {
         s1++;
@@ -29,24 +29,19 @@ static int strcmp_txtedit(const char *s1, const char *s2) {
     return *(const unsigned char*)s1 - *(const unsigned char*)s2;
 }
 
-// File structure to store documents in RAM
-typedef struct {
-    char name[MAX_FILENAME];
-    char content[BUFFER_SIZE];
-    int size;
-} RAMFile;
+static size_t strlen_txtedit(const char* str) {
+    size_t len = 0;
+    while (str[len]) len++;
+    return len;
+}
 
-// Global storage for files
-static RAMFile ram_files[MAX_FILES];
-static int file_count = 0;
-#define ESC_KEY 0x01
-#define ENTER_KEY 0x1C
-#define BACKSPACE_KEY 0x0E
-
-// RAM storage for the text buffer
+// Buffer for the current file being edited
 static char text_buffer[BUFFER_SIZE];
 static int buffer_size = 0;
 static int cursor_pos = 0;
+#define ESC_KEY 0x01
+#define ENTER_KEY 0x1C
+#define BACKSPACE_KEY 0x0E
 
 // Status messages
 static const char* MSG_SAVED = "Text saved to RAM buffer";
@@ -68,7 +63,7 @@ static void draw_status_line(const char* msg) {
 static void get_filename(char* filename) {
     int pos = 0;
     print_clear();
-    brew_str("Enter filename (max 31 chars): ");
+    brew_str("Enter filename (e.g., file.txt): ");
     
     while(1) {
         if(check_keyboard()) {
@@ -86,7 +81,7 @@ static void get_filename(char* filename) {
             }
             else {
                 char c = scan_code_to_ascii(scan_code);
-                if(c && pos < MAX_FILENAME - 1) {
+                if(c && pos < FS_MAX_FILENAME - 1) {
                     filename[pos++] = c;
                     print_char(c);
                 }
@@ -95,88 +90,28 @@ static void get_filename(char* filename) {
     }
 }
 
-static int select_file() {
-    int selected = 0;
-    int needs_redraw = 1;
-    
-    while(1) {
-        if(needs_redraw) {
-            print_clear();
-            brew_str("Select a file:\n\n");
-            
-            // Show NEW FILE option with highlight if selected
-            if(selected == 0) {
-                print_set_color(PRINT_INDEX_0, PRINT_INDEX_7);
-            }
-            brew_str("[NEW FILE]\n");
-            print_set_color(PRINT_INDEX_7, PRINT_INDEX_0);
-            
-            for(int i = 0; i < file_count; i++) {
-                if(i + 1 == selected) {
-                    print_set_color(PRINT_INDEX_0, PRINT_INDEX_7);
-                }
-                brew_str(ram_files[i].name);
-                brew_str("\n");
-                print_set_color(PRINT_INDEX_7, PRINT_INDEX_0);
-            }
-            needs_redraw = 0;
-        }
-        
-        if(check_keyboard()) {
-            unsigned char scan_code = read_scan_code();
-            
-            if(scan_code == SCAN_CODE_UP_ARROW) {
-                if(selected > 0) {
-                    selected--;
-                    needs_redraw = 1;
-                }
-            }
-            else if(scan_code == SCAN_CODE_DOWN_ARROW) {
-                if(selected < file_count) {
-                    selected++;
-                    needs_redraw = 1;
-                }
-            }
-            else if(scan_code == 0x1C) { // Enter
-                return selected - 1; // -1 means new file
-            }
-        }
-    }
-}
+static char current_filename[FS_MAX_FILENAME];
 
-static void save_current_buffer(const char* text_buffer, int buffer_size) {
-    if(file_count >= MAX_FILES) {
-        draw_status_line("Error: Maximum number of files reached");
+static void save_current_buffer(const char* text_buffer, int buffer_size, bool prompt_for_filename) {
+    // If we don't have a current filename and need to prompt, ask for one
+    if (current_filename[0] == '\0' && prompt_for_filename) {
+        get_filename(current_filename);
+    } else if (current_filename[0] == '\0') {
+        draw_status_line("Error: No filename specified");
         return;
     }
     
-    char filename[MAX_FILENAME];
-    get_filename(filename);
-    
-    // Check if filename already exists
-    for(int i = 0; i < file_count; i++) {
-        if(strcmp_txtedit(filename, ram_files[i].name) == 0) {
-            // Update existing file
-            for(int j = 0; j < buffer_size && j < BUFFER_SIZE; j++) {
-                ram_files[i].content[j] = text_buffer[j];
-            }
-            ram_files[i].size = buffer_size;
-            draw_status_line("File updated");
-            return;
-        }
+    // Create a new file in the current directory
+    File* file = fs_find_file(current_filename);
+    if (!file) {
+        file = fs_create_file(current_filename);
     }
     
-    // Create new file
-    for(int i = 0; i < MAX_FILENAME; i++) {
-        ram_files[file_count].name[i] = filename[i];
-        if(filename[i] == '\0') break;
+    if (file && file_write_content(file, text_buffer, buffer_size)) {
+        draw_status_line("File saved successfully");
+    } else {
+        draw_status_line("Error: Could not save file");
     }
-    
-    for(int i = 0; i < buffer_size && i < BUFFER_SIZE; i++) {
-        ram_files[file_count].content[i] = text_buffer[i];
-    }
-    ram_files[file_count].size = buffer_size;
-    file_count++;
 }
 
 static void redraw_screen() {
@@ -241,24 +176,48 @@ static void handle_special_key(unsigned char scan_code) {
     }
 }
 
-void txtedit_run() {
+static void load_file(const char* filename) {
+    File* file = fs_find_file(filename);
+    if (!file) {
+        draw_status_line("Creating new file");
+        return;
+    }
+
+    size_t size;
+    const char* content = file_get_content(file, &size);
+    if (!content || size > BUFFER_SIZE) {
+        draw_status_line("Error: Could not load file or file too large");
+        return;
+    }
+
+    // Copy content to buffer
+    for (size_t i = 0; i < size; i++) {
+        text_buffer[i] = content[i];
+    }
+    buffer_size = size;
+    cursor_pos = size;
+    draw_status_line("File loaded successfully");
+}
+
+void txtedit_run(const char* filename) {
     print_set_color(PRINT_INDEX_7, PRINT_INDEX_0);  // Set initial color to latte
-    int file_index = select_file();
     
-    // Clear the buffers
+    // Clear the buffers and filename
     for(int i = 0; i < BUFFER_SIZE; i++) {
         text_buffer[i] = 0;
     }
     buffer_size = 0;
     cursor_pos = 0;
-    
-    // Load file if selected
-    if(file_index >= 0) {
-        for(int i = 0; i < ram_files[file_index].size; i++) {
-            text_buffer[i] = ram_files[file_index].content[i];
+    current_filename[0] = '\0';
+
+    // If filename is provided, store it
+    if (filename) {
+        int i;
+        for (i = 0; filename[i] && i < FS_MAX_FILENAME - 1; i++) {
+            current_filename[i] = filename[i];
         }
-        buffer_size = ram_files[file_index].size;
-        cursor_pos = buffer_size;
+        current_filename[i] = '\0';
+        load_file(filename);
     }
     
     print_clear();
@@ -277,7 +236,8 @@ void txtedit_run() {
                         unsigned char save_scan = read_scan_code();
                         char save_char = scan_code_to_ascii(save_scan);
                         if(save_char == 'Y' || save_char == 'y') {
-                            save_current_buffer(text_buffer, buffer_size);
+                            // Only prompt for filename if we don't have one (started with txtedit with no args)
+                            save_current_buffer(text_buffer, buffer_size, current_filename[0] == '\0');
                             break;
                         }
                         else if(save_char == 'N' || save_char == 'n') {

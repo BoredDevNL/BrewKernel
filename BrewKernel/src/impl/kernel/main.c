@@ -40,8 +40,9 @@
 #include "APPS/shutdown.h"
 #include "APPS/reboot.h"
 #include "APPS/cowsay.h"
+#include "filesys.h"
 
-// Enable to automatically enter the CLI on boot. Set to 0 to disable probably no reason to do this, might be handy though.
+// Enable to automatically enter the CLI on boot. Set to 0 to disable this, probably no reason to do this might be handy though.
 #ifndef AUTO_START_CLI
 #define AUTO_START_CLI 1
 #endif
@@ -222,8 +223,13 @@ static void process_command(void) {
     else if (strcmp_kernel(cmd_upper, "BEEP") == 0) {
         beep_command();
     }
-    else if (strcmp_kernel(cmd_upper, "TXTEDIT") == 0) {
-        txtedit_run();
+    else if (strcmp_kernel(cmd_upper, "TXTEDIT") == 0 || (brew_strlen(cmd_upper) > 7 && strncmp_kernel(cmd_upper, "TXTEDIT ", 8) == 0)) {
+        if (brew_strlen(command_buffer) > 8) {
+            // Extract filename after "TXTEDIT "
+            txtedit_run(&command_buffer[8]);
+        } else {
+            txtedit_run(NULL);
+        }
         print_clear();
     }
     else if (strcmp_kernel(cmd_upper, "SHUTDOWN") == 0) {
@@ -235,8 +241,48 @@ static void process_command(void) {
     else if (strcmp_kernel(cmd_upper, "COWSAY") == 0 || (brew_strlen(cmd_upper) > 6 && strncmp_kernel(cmd_upper, "COWSAY ", 7) == 0)) {
         display_cowsay(command_buffer);
     }
-
-
+    else if (strcmp_kernel(cmd_upper, "LS") == 0 || (brew_strlen(cmd_upper) > 2 && strncmp_kernel(cmd_upper, "LS ", 3) == 0)) {
+        brew_str("\n");
+        if (brew_strlen(command_buffer) > 3) {
+            const char* path = &command_buffer[3];
+            if (!fs_list_directory_at_path(path)) {
+                brew_str("Directory not found: ");
+                brew_str(path);
+                brew_str("\n");
+            }
+        } else {
+            fs_list_directory();
+        }
+    }
+    else if (strcmp_kernel(cmd_upper, "CD") == 0) {
+        brew_str("\nUsage: CD <directory>\n");
+    }
+    else if (strcmp_kernel(cmd_upper, "MKDIR") == 0 || (brew_strlen(cmd_upper) > 5 && strncmp_kernel(cmd_upper, "MKDIR ", 6) == 0)) {
+        if (brew_strlen(command_buffer) > 6) {
+            const char* path = &command_buffer[6];
+            brew_str("\n");
+            if (fs_create_directory_at_path(path)) {
+                brew_str("Directory created successfully\n");
+            } else {
+                brew_str("Failed to create directory\n");
+            }
+        } else {
+            brew_str("\nUsage: MKDIR <directory>\n");
+        }
+    }
+    else if (brew_strlen(cmd_upper) > 3 && strncmp_kernel(cmd_upper, "CD ", 3) == 0) {
+        const char* path = &command_buffer[3];
+        brew_str("\n");
+        if (!fs_change_directory(path)) {
+            brew_str("Directory not found: ");
+            brew_str(path);
+            brew_str("\n");
+        }
+    }
+    else if (strcmp_kernel(cmd_upper, "PWD") == 0) {
+        brew_str("\n");
+        fs_print_working_directory();
+    }
     else if (strcmp_kernel(cmd_upper, "EXIT") == 0) {
         in_cli_mode = 0;
         print_clear();
@@ -312,6 +358,9 @@ void kernel_main() {
     print_clear();
     
     print_init_palette();
+    
+    // Initialize filesystem
+    fs_init();
     
     // Initialize uptime counter at boot (cmd: uptime in cli)
     init_uptime();
