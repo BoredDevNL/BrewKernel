@@ -42,4 +42,16 @@ static inline unsigned short inw(unsigned short port) {
     return ret;
 }
 
+// Function to output a dword (32 bits) to an I/O port
+static inline void outl(unsigned short port, unsigned int value) {
+    asm volatile ("outl %0, %1" : : "a"(value), "Nd"(port));
+}
+
+// Function to input a dword (32 bits) from an I/O port
+static inline unsigned int inl(unsigned short port) {
+    unsigned int ret;
+    asm volatile ("inl %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
+}
+
 #endif

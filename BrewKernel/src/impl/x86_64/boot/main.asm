@@ -86,29 +86,89 @@ check_long_mode:
     jmp error
 
 ; Function: setup_page_tables
-; Sets up a basic page table hierarchy for identity mapping first 1GB
+; Sets up a basic page table hierarchy for identity mapping
+; Maps first 1GB + PCI MMIO region (0xFE800000-0xFF000000)
 setup_page_tables:
-    ; Map level 4 table to level 3 table
+    ; Map level 4 table to level 3 table (L4[0] -> L3)
     mov eax, page_table_l3
     or eax, 0b11           ; Present + Writable
-    mov [page_table_l4], eax
+    mov edx, 0
+    mov [page_table_l4], eax       ; Store low 32 bits
+    mov [page_table_l4 + 4], edx   ; Store high 32 bits (0)
     
-    ; Map level 3 table to level 2 table
+    ; Map level 3 table to level 2 table (L3[0] -> L2)
+    ; This covers the first 1GB (0x00000000-0x3FFFFFFF)
     mov eax, page_table_l2
     or eax, 0b11           ; Present + Writable
-    mov [page_table_l3], eax
+    mov edx, 0
+    mov [page_table_l3], eax       ; Store low 32 bits
+    mov [page_table_l3 + 4], edx   ; Store high 32 bits (0)
 
     ; Identity map first 1GB using 2MB pages
+    ; L2 entries 0-511 cover addresses 0x00000000-0x3FFFFFFF
     mov ecx, 0 
 .loop:
     mov eax, 0x200000      ; 2MB per page
-    mul ecx
+    mul ecx                ; Calculate physical address: ecx * 2MB
     or eax, 0b10000011     ; Present + Writable + Huge Page
-    mov [page_table_l2 + ecx * 8], eax
+    mov edx, 0             ; Clear upper 32 bits for 64-bit entry
+    mov [page_table_l2 + ecx * 8], eax      ; Store low 32 bits
+    mov [page_table_l2 + ecx * 8 + 4], edx  ; Store high 32 bits (0)
 
     inc ecx 
     cmp ecx, 512           ; Map 512 entries (1GB total)
     jne .loop 
+    
+    ; Map PCI MMIO region (0xFE800000 - 0xFF000000)
+    ; Address 0xFE800000 = 4,272,629,760 bytes = ~4GB
+    ; This is still in the first 4GB, so it uses L4[0] -> L3[0] -> L2
+    ; But L2 only has 512 entries covering 1GB, so we need a different L3 entry
+    ; Actually, 0xFE800000 / (512 * 2MB) = 0xFE800000 / 0x40000000 = 3.99
+    ; So we need L3[3] for addresses 0xC0000000-0xFFFFFFFF
+    
+    ; Set up L3[3] to point to a second L2 table for the 4th GB
+    ; But we don't have a second L2 table allocated...
+    ; Actually, we can reuse the same L2 table since we're using huge pages
+    ; Wait, that won't work because L2[0] would map to 0x00000000, not 0xC0000000
+    
+    ; Better approach: Map the entire 4th GB (0xC0000000-0xFFFFFFFF) using L3[3]
+    ; But we need another L2 table for that, or we can map it differently
+    
+    ; Actually, let's just map the MMIO region directly in L2
+    ; But wait, L2[0x7F4] would map to 0xFE800000 if we're using the same L2 table
+    ; The issue is that L3[0] only covers the first 1GB, so L2 entries above 511 aren't used
+    
+    ; Set up L3[3] to cover the 4th GB (0xC0000000-0xFFFFFFFF) and point it to a separate L2 table
+    mov eax, page_table_l2_mmio
+    or eax, 0b11           ; Present + Writable  
+    mov edx, 0
+    mov [page_table_l3 + 3 * 8], eax       ; L3[3] -> page_table_l2_mmio (covers 0xC0000000-0xFFFFFFFF)
+    mov [page_table_l3 + 3 * 8 + 4], edx
+    
+    ; Now map the MMIO region in the MMIO L2 table (identity mapping)
+    ; With L3[3] (covers 0xC0000000-0xFFFFFFFF), L2 entry N maps virtual address 0xC0000000 + (N * 2MB)
+    ; For identity mapping of 0xFE800000: 
+    ;   Virtual address = 0xFE800000
+    ;   Physical address = 0xFE800000 (identity)
+    ;   N = (0xFE800000 - 0xC0000000) / 0x200000 = 0x1F4
+    ;   L2[0x1F4] should contain physical address 0xFE800000
+    mov ecx, 0x1F4         ; Start at entry 0x1F4 (maps virtual 0xFE800000)
+.map_mmio:
+    ; Calculate physical address for identity mapping
+    ; Virtual 0xFE800000 + (ecx - 0x1F4) * 2MB = Physical address
+    mov eax, ecx
+    sub eax, 0x1F4         ; Offset from start (0, 1, 2, or 3)
+    mov ebx, 0x200000      ; 2MB per page
+    mul ebx                ; eax = offset * 2MB
+    add eax, 0xFE800000    ; Add base: 0xFE800000 + offset
+    or eax, 0b10000011     ; Present + Writable + Huge Page
+    mov edx, 0             ; Clear upper 32 bits
+    mov [page_table_l2_mmio + ecx * 8], eax      ; Store low 32 bits in MMIO L2 table
+    mov [page_table_l2_mmio + ecx * 8 + 4], edx  ; Store high 32 bits (0)
+    
+    inc ecx
+    cmp ecx, 0x1F8         ; Map 4 entries (0x1F4-0x1F7, covers 0xFE800000-0xFF000000)
+    jne .map_mmio
 
     ret
 
@@ -154,7 +214,9 @@ page_table_l4:
     resb 4096
 page_table_l3:             
     resb 4096
-page_table_l2:           
+page_table_l2:           ; L2 table for first 1GB
+    resb 4096
+page_table_l2_mmio:      ; L2 table for MMIO region (4th GB)
     resb 4096
 stack_bottom:              ; Kernel stack (16KB)
     resb 4096 * 4

@@ -52,18 +52,26 @@ load_idt:
 ; Input:
 ;   RAX = Address of ISR
 ;   RBX = Interrupt vector number
-;   RCX = Segment selector
+;   RCX = Segment selector (should be 0 for 64-bit)
 set_idt_entry:
     mov rdx, rax                           ; Save ISR address
     
     shl rbx, 4                             ; Multiply vector by 16 (entry size)
     lea rsi, [idt + rbx]                   ; Calculate entry address
     
-    mov [rsi], rdx                         ; Store low 16 bits of ISR address
-    shr rdx, 16                            ; Get high bits
-    mov [rsi + 8], rdx                     ; Store high bits of ISR address
-    mov [rsi + 2], rcx                     ; Set segment selector
-    mov byte [rsi + 5], 0x8E               ; P=1, DPL=0, Type=0xE (64-bit interrupt gate)
+    ; Store low 16 bits of ISR address
+    mov word [rsi], dx
+    ; Store next 16 bits
+    shr rdx, 16
+    mov word [rsi + 6], dx
+    ; Store high 32 bits
+    shr rdx, 16
+    mov dword [rsi + 8], edx
+    
+    ; Set segment selector (0 for 64-bit)
+    mov word [rsi + 2], cx
+    ; Set flags: P=1, DPL=0, Type=0xE (64-bit interrupt gate)
+    mov byte [rsi + 5], 0x8E
     ret
 
 section .text
@@ -83,41 +91,196 @@ isr_debug:
     iretq                                  ; Return from interrupt
 
 ; ISR 14: Page Fault Exception Handler
+; In 64-bit mode, the error code is pushed automatically
+; CR2 contains the faulting address
 isr_page_fault:
     cli                                    ; Disable interrupts
+    ; Get faulting address from CR2
+    mov rax, cr2
+    ; For now, just halt - in a real OS you'd handle this
+    ; TODO: Print error message with fault address
     hlt                                    ; Halt the CPU
     iretq                                  ; Return from interrupt
 
+; External C function for IRQ dispatching
+extern irq_dispatcher
+extern timer_tick
+
+; Generic IRQ handler stub
+; This is called for each IRQ and dispatches to the C handler
+%macro IRQ_ISR 1
+irq%1:
+    push rax
+    push rcx
+    push rdx
+    push rbx
+    push rbp
+    push rsi
+    push rdi
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    
+    mov rdi, %1                            ; Pass IRQ number as first argument
+    call irq_dispatcher                    ; Call C dispatcher
+    
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rbp
+    pop rbx
+    pop rdx
+    pop rcx
+    pop rax
+    iretq
+%endmacro
+
+; Create IRQ handlers for IRQ 0-15
+IRQ_ISR 0
+IRQ_ISR 1
+IRQ_ISR 2
+IRQ_ISR 3
+IRQ_ISR 4
+IRQ_ISR 5
+IRQ_ISR 6
+IRQ_ISR 7
+IRQ_ISR 8
+IRQ_ISR 9
+IRQ_ISR 10
+IRQ_ISR 11
+IRQ_ISR 12
+IRQ_ISR 13
+IRQ_ISR 14
+IRQ_ISR 15
+
 ; Function: init_idt
-; Initializes the IDT with basic exception handlers
+; Initializes the IDT with basic exception handlers and IRQ handlers
 init_idt:
+    push rbx
+    push rcx
+    
     ; Set up Division by Zero handler (Vector 0)
     mov rax, isr_divide_by_zero
-    mov rcx, 0                             ; Vector number
+    mov rbx, 0                             ; Vector number
+    mov rcx, 0                             ; Segment selector
     call set_idt_entry
 
     ; Set up Debug Exception handler (Vector 1)
     mov rax, isr_debug
-    mov rcx, 1                             ; Vector number
+    mov rbx, 1                             ; Vector number
+    mov rcx, 0                             ; Segment selector
     call set_idt_entry
 
     ; Set up Page Fault handler (Vector 14)
     mov rax, isr_page_fault
-    mov rcx, 14                            ; Vector number
+    mov rbx, 14                            ; Vector number
+    mov rcx, 0                             ; Segment selector
+    call set_idt_entry
+
+    ; Set up IRQ handlers (Vectors 0x20-0x2F)
+    mov rax, irq0
+    mov rbx, 0x20                          ; IRQ 0 -> Vector 0x20
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq1
+    mov rbx, 0x21                          ; IRQ 1 -> Vector 0x21
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq2
+    mov rbx, 0x22                          ; IRQ 2 -> Vector 0x22
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq3
+    mov rbx, 0x23                          ; IRQ 3 -> Vector 0x23
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq4
+    mov rbx, 0x24                          ; IRQ 4 -> Vector 0x24
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq5
+    mov rbx, 0x25                          ; IRQ 5 -> Vector 0x25
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq6
+    mov rbx, 0x26                          ; IRQ 6 -> Vector 0x26
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq7
+    mov rbx, 0x27                          ; IRQ 7 -> Vector 0x27
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq8
+    mov rbx, 0x28                          ; IRQ 8 -> Vector 0x28
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq9
+    mov rbx, 0x29                          ; IRQ 9 -> Vector 0x29
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq10
+    mov rbx, 0x2A                          ; IRQ 10 -> Vector 0x2A
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq11
+    mov rbx, 0x2B                          ; IRQ 11 -> Vector 0x2B
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq12
+    mov rbx, 0x2C                          ; IRQ 12 -> Vector 0x2C
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq13
+    mov rbx, 0x2D                          ; IRQ 13 -> Vector 0x2D
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq14
+    mov rbx, 0x2E                          ; IRQ 14 -> Vector 0x2E
+    mov rcx, 0
+    call set_idt_entry
+    
+    mov rax, irq15
+    mov rbx, 0x2F                          ; IRQ 15 -> Vector 0x2F
+    mov rcx, 0
     call set_idt_entry
 
     call load_idt                          ; Load the IDT
+    
+    pop rcx
+    pop rbx
     ret
 
 section .text
-global main
+global init_idt
 
-; Main entry point
-main:
-    call init_idt                          ; Initialize interrupt handling
-
-    cli                                    ; Disable interrupts
-    hlt                                    ; Halt the CPU
+; Note: init_idt is now called from C code (kernel_main)
+; The old main function has been removed
 
 section .data
 idt_end:

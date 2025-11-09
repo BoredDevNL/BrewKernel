@@ -39,7 +39,11 @@ static void display_help() {
     brew_str("  CD      - Change current directory\n");
     brew_str("  PWD     - Print working directory\n");
     brew_str("  MKDIR   - Create one or more directories\n");
-    brew_str("  RM      - Remove a file or empty directory");
+    brew_str("  RM      - Remove a file or empty directory\n");
+    brew_str("  NETINIT - Initialize network card\n");
+    brew_str("  NETINFO - Show network status (MAC, IP)\n");
+    brew_str("  UDPTEST - Start UDP echo server on port 12345 (broken)\n");
+    brew_str("  UDPSEND - Send UDP packet (UDPSEND <ip> <port> <msg>)");
 }
 
 #endif // APPS_HELP_H
