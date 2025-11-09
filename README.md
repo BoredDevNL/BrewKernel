@@ -1,4 +1,4 @@
-# Brew Kernel
+# Brew Kernel V3.0
 
 <img src="asciiart.png" width="200" /> </br>
 Brew Kernel is a simple x86_64 hobbyist kernel. 
@@ -7,6 +7,7 @@ It features a custom bootloader, VGA text mode output with customizable colors, 
 <img src="img/brewkernel.png" width="500" alt="QEMU Screenshot" /><br />
 <sub><i>Note: This screenshot may be outdated.</i></sub>
 ## Features
+- Basic Networking 
 - Basic ramdisk-like filesystem
 - 64-bit long mode support
 - Multiboot2 compliant
