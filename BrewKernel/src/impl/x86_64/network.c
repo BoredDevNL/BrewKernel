@@ -52,7 +52,7 @@ static int memcmp(const void* s1, const void* s2, size_t n) {
 
 static int network_initialized = 0;
 static mac_address_t our_mac;
-static ipv4_address_t our_ip = {{10, 0, 2, 15}}; 
+static ipv4_address_t our_ip = {{0, 0, 0, 0}};
 static uint16_t ipv4_id_counter = 0;
 
 static arp_cache_entry_t arp_cache[ARP_CACHE_SIZE];
@@ -173,6 +173,9 @@ int network_init(void) {
     memset(udp_callbacks, 0, sizeof(udp_callbacks));
     
     network_initialized = 1;
+    
+    // Try to acquire IP via DHCP (best-effort)
+    (void)network_dhcp_acquire();
     return 0;
 }
 
@@ -592,4 +595,229 @@ int network_get_e1000_receive_empty(void) {
 
 int network_get_process_calls(void) {
     return network_process_calls;
+}
+
+// ----------------------------
+// Minimal DHCP client (IPv4)
+// ----------------------------
+
+#define DHCP_CLIENT_PORT 68
+#define DHCP_SERVER_PORT 67
+
+#define DHCP_MAGIC_COOKIE 0x63825363U
+
+#define DHCP_OP_BOOTREQUEST 1
+#define DHCP_OP_BOOTREPLY   2
+
+#define DHCP_HTYPE_ETHERNET 1
+#define DHCP_HLEN_ETHERNET  6
+
+#define DHCP_MSG_DISCOVER 1
+#define DHCP_MSG_OFFER    2
+#define DHCP_MSG_REQUEST  3
+#define DHCP_MSG_DECLINE  4
+#define DHCP_MSG_ACK      5
+#define DHCP_MSG_NAK      6
+
+#define DHCP_OPT_MSG_TYPE         53
+#define DHCP_OPT_SERVER_ID        54
+#define DHCP_OPT_REQ_IP           50
+#define DHCP_OPT_PARAM_REQ_LIST   55
+#define DHCP_OPT_END              255
+
+typedef struct {
+    uint8_t  op;
+    uint8_t  htype;
+    uint8_t  hlen;
+    uint8_t  hops;
+    uint32_t xid;
+    uint16_t secs;
+    uint16_t flags;
+    uint32_t ciaddr;
+    uint32_t yiaddr;
+    uint32_t siaddr;
+    uint32_t giaddr;
+    uint8_t  chaddr[16];
+    uint8_t  sname[64];
+    uint8_t  file[128];
+    uint32_t magic_cookie;
+    uint8_t  options[312]; // enough for minimal usage
+} __attribute__((packed)) dhcp_packet_t;
+
+static volatile int dhcp_state = 0; // 0=start, 1=offered, 2=acked, -1=failed
+static uint32_t dhcp_xid = 0;
+static ipv4_address_t dhcp_offered_ip;
+static uint32_t dhcp_server_id = 0;
+
+static uint16_t htons16(uint16_t v) { return ((v & 0xFF) << 8) | ((v >> 8) & 0xFF); }
+static uint32_t htonl32(uint32_t v) {
+    return ((v & 0xFF) << 24) | ((v & 0xFF00) << 8) | ((v >> 8) & 0xFF00) | ((v >> 24) & 0xFF);
+}
+static uint32_t ntohl32(uint32_t v) { return htonl32(v); }
+
+static void dhcp_build_discover(dhcp_packet_t* pkt) {
+    // Zero packet then fill
+    memset(pkt, 0, sizeof(dhcp_packet_t));
+    pkt->op = DHCP_OP_BOOTREQUEST;
+    pkt->htype = DHCP_HTYPE_ETHERNET;
+    pkt->hlen = DHCP_HLEN_ETHERNET;
+    pkt->hops = 0;
+    pkt->xid = htonl32(dhcp_xid);
+    pkt->secs = 0;
+    pkt->flags = htons16(0x8000); // broadcast
+    pkt->ciaddr = 0;
+    pkt->yiaddr = 0;
+    pkt->siaddr = 0;
+    pkt->giaddr = 0;
+    // chaddr: client hardware address
+    memcpy(pkt->chaddr, our_mac.bytes, 6);
+    pkt->magic_cookie = htonl32(DHCP_MAGIC_COOKIE);
+    // options
+    uint8_t* opt = pkt->options;
+    // DHCP Message Type: DISCOVER
+    *opt++ = DHCP_OPT_MSG_TYPE; *opt++ = 1; *opt++ = DHCP_MSG_DISCOVER;
+    // Parameter request list
+    *opt++ = DHCP_OPT_PARAM_REQ_LIST; *opt++ = 3; // length
+    *opt++ = 1;  // Subnet Mask
+    *opt++ = 3;  // Router
+    *opt++ = 6;  // DNS
+    // End
+    *opt++ = DHCP_OPT_END;
+}
+
+static void dhcp_build_request(dhcp_packet_t* pkt) {
+    memset(pkt, 0, sizeof(dhcp_packet_t));
+    pkt->op = DHCP_OP_BOOTREQUEST;
+    pkt->htype = DHCP_HTYPE_ETHERNET;
+    pkt->hlen = DHCP_HLEN_ETHERNET;
+    pkt->hops = 0;
+    pkt->xid = htonl32(dhcp_xid);
+    pkt->secs = 0;
+    pkt->flags = htons16(0x8000); // broadcast
+    memcpy(pkt->chaddr, our_mac.bytes, 6);
+    pkt->magic_cookie = htonl32(DHCP_MAGIC_COOKIE);
+    uint8_t* opt = pkt->options;
+    // DHCP Message Type: REQUEST
+    *opt++ = DHCP_OPT_MSG_TYPE; *opt++ = 1; *opt++ = DHCP_MSG_REQUEST;
+    // Requested IP address
+    *opt++ = DHCP_OPT_REQ_IP; *opt++ = 4;
+    *opt++ = dhcp_offered_ip.bytes[0];
+    *opt++ = dhcp_offered_ip.bytes[1];
+    *opt++ = dhcp_offered_ip.bytes[2];
+    *opt++ = dhcp_offered_ip.bytes[3];
+    // Server Identifier
+    *opt++ = DHCP_OPT_SERVER_ID; *opt++ = 4;
+    *opt++ = (uint8_t)((dhcp_server_id >> 24) & 0xFF);
+    *opt++ = (uint8_t)((dhcp_server_id >> 16) & 0xFF);
+    *opt++ = (uint8_t)((dhcp_server_id >> 8) & 0xFF);
+    *opt++ = (uint8_t)(dhcp_server_id & 0xFF);
+    // End
+    *opt++ = DHCP_OPT_END;
+}
+
+static uint8_t dhcp_get_option(const uint8_t* opts, uint8_t code) {
+    // simple walker
+    const uint8_t* p = opts;
+    while (*p != DHCP_OPT_END) {
+        uint8_t opt_code = *p++;
+        uint8_t opt_len = *p++;
+        if (opt_code == code) {
+            return p[0]; // caller knows expected 1-byte option (message type)
+        }
+        p += opt_len;
+    }
+    return 0;
+}
+
+static void dhcp_udp_callback(const ipv4_address_t* src_ip, uint16_t src_port, void* payload, size_t payload_length) {
+    (void)src_ip;
+    if (src_port != DHCP_SERVER_PORT || payload_length < sizeof(dhcp_packet_t) - 312) {
+        return;
+    }
+    dhcp_packet_t* pkt = (dhcp_packet_t*)payload;
+    if (pkt->op != DHCP_OP_BOOTREPLY) {
+        return;
+    }
+    if (ntohl32(pkt->xid) != dhcp_xid) {
+        return;
+    }
+    if (ntohl32(pkt->magic_cookie) != DHCP_MAGIC_COOKIE) {
+        return;
+    }
+    // Parse options
+    uint8_t mtype = dhcp_get_option(pkt->options, DHCP_OPT_MSG_TYPE);
+    if (mtype == DHCP_MSG_OFFER) {
+        // Record offered IP and server id
+        uint32_t yi = pkt->yiaddr;
+        uint32_t yi_host = ntohl32(yi);
+        dhcp_offered_ip.bytes[0] = (uint8_t)((yi_host >> 24) & 0xFF);
+        dhcp_offered_ip.bytes[1] = (uint8_t)((yi_host >> 16) & 0xFF);
+        dhcp_offered_ip.bytes[2] = (uint8_t)((yi_host >> 8) & 0xFF);
+        dhcp_offered_ip.bytes[3] = (uint8_t)(yi_host & 0xFF);
+        // Server identifier
+        // Walk options to extract server id (length 4)
+        const uint8_t* p = pkt->options;
+        dhcp_server_id = 0;
+        while (*p != DHCP_OPT_END) {
+            uint8_t c = *p++;
+            uint8_t l = *p++;
+            if (c == DHCP_OPT_SERVER_ID && l == 4) {
+                dhcp_server_id = ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+                break;
+            }
+            p += l;
+        }
+        if (dhcp_server_id != 0) {
+            dhcp_state = 1; // offered
+        }
+    } else if (mtype == DHCP_MSG_ACK) {
+        // Use yiaddr from ACK
+        uint32_t yi = pkt->yiaddr;
+        uint32_t yi_host = ntohl32(yi);
+        our_ip.bytes[0] = (uint8_t)((yi_host >> 24) & 0xFF);
+        our_ip.bytes[1] = (uint8_t)((yi_host >> 16) & 0xFF);
+        our_ip.bytes[2] = (uint8_t)((yi_host >> 8) & 0xFF);
+        our_ip.bytes[3] = (uint8_t)(yi_host & 0xFF);
+        dhcp_state = 2; // acked
+    } else if (mtype == DHCP_MSG_NAK) {
+        dhcp_state = -1;
+    }
+}
+
+int network_dhcp_acquire(void) {
+    if (!network_initialized) {
+        return -1;
+    }
+    // Register UDP callback for client port
+    if (udp_register_callback(DHCP_CLIENT_PORT, dhcp_udp_callback) != 0) {
+        return -1;
+    }
+    // Create transaction id (simple counter)
+    dhcp_xid += 0x12345u + (uint32_t)ipv4_id_counter;
+    dhcp_state = 0;
+    dhcp_server_id = 0;
+    
+    // Send DISCOVER
+    dhcp_packet_t pkt;
+    dhcp_build_discover(&pkt);
+    ipv4_address_t bcast = {{255, 255, 255, 255}};
+    (void)udp_send_packet(&bcast, DHCP_SERVER_PORT, DHCP_CLIENT_PORT, &pkt, sizeof(dhcp_packet_t));
+    
+    // Poll for OFFER
+    for (int i = 0; i < 50000 && dhcp_state == 0; i++) {
+        network_process_frames();
+    }
+    if (dhcp_state != 1) {
+        return -1;
+    }
+    
+    // Send REQUEST
+    dhcp_build_request(&pkt);
+    (void)udp_send_packet(&bcast, DHCP_SERVER_PORT, DHCP_CLIENT_PORT, &pkt, sizeof(dhcp_packet_t));
+    
+    // Poll for ACK
+    for (int i = 0; i < 50000 && dhcp_state == 1; i++) {
+        network_process_frames();
+    }
+    return (dhcp_state == 2) ? 0 : -1;
 }

@@ -83,7 +83,6 @@ static int in_cli_mode = 0;
 static int timezone_offset_h = 0;
 static int timezone_offset_m = 0;
 
-// network CLI helpers moved to network_cli.{h,c}
 
 void brewing(int iterations) {
     for (volatile int i = 0; i < iterations; i++) {
@@ -292,7 +291,6 @@ static void process_command(void) {
     else if (shell_handle_command(cmd_upper, command_buffer, (int*)&return_to_prompt)) {
     }
     else if (net_handle_command(cmd_upper, command_buffer, (int*)&return_to_prompt)) {
-        // handled by network CLI module
     }
     else if (strcmp_kernel(cmd_upper, "EXIT") == 0) {
         shutdown_command();

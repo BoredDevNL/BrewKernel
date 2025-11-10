@@ -128,6 +128,9 @@ int arp_send_request(const ipv4_address_t* target_ip);
 int arp_lookup(const ipv4_address_t* ip, mac_address_t* mac);
 void arp_process_packet(const arp_header_t* arp, size_t length);
 
+// DHCP (best-effort) - acquire an IP from router
+int network_dhcp_acquire(void);
+
 // IPv4 functions
 int ipv4_send_packet(const ipv4_address_t* dest_ip, uint8_t protocol,
                      const void* data, size_t data_length);
