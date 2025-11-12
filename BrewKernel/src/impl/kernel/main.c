@@ -235,6 +235,141 @@ static void process_command(void) {
             }
         }
     }
+    else if (strcmp_kernel(cmd_upper, "LS") == 0) {
+        brew_str("\n");
+        fs_list_directory();
+    }
+    else if (strncmp_kernel(cmd_upper, "LS ", 3) == 0) {
+        brew_str("\n");
+        const char* path = command_buffer + 3;
+        while (*path == ' ') path++;
+        fs_list_directory_at_path(path);
+    }
+    else if (strcmp_kernel(cmd_upper, "PWD") == 0) {
+        brew_str("\n");
+        fs_print_working_directory();
+    }
+    else if (strncmp_kernel(cmd_upper, "CD ", 3) == 0) {
+        const char* path = command_buffer + 3;
+        while (*path == ' ') path++;
+        
+        if (*path == '\0') {
+            brew_str("cd: missing operand\n");
+        } else {
+            if (!fs_change_directory(path)) {
+                brew_str("cd: cannot access '");
+                brew_str(path);
+                brew_str("': No such file or directory\n");
+            }
+        }
+    }
+    else if (strncmp_kernel(cmd_upper, "MKDIR ", 6) == 0) {
+        const char* path = command_buffer + 6;
+        while (*path == ' ') path++;
+        
+        if (*path == '\0') {
+            brew_str("mkdir: missing operand\n");
+        } else {
+            if (!fs_create_directory_at_path(path)) {
+                brew_str("mkdir: cannot create directory '");
+                brew_str(path);
+                brew_str("'\n");
+            }
+        }
+    }
+    else if (strncmp_kernel(cmd_upper, "TOUCH ", 6) == 0) {
+        const char* path = command_buffer + 6;
+        while (*path == ' ') path++;
+        
+        if (*path == '\0') {
+            brew_str("touch: missing operand\n");
+        } else {
+            if (!fs_create_file_at_path(path)) {
+                brew_str("touch: cannot create file '");
+                brew_str(path);
+                brew_str("'\n");
+            }
+        }
+    }
+    else if (strncmp_kernel(cmd_upper, "CAT ", 4) == 0) {
+        brew_str("\n");
+        const char* path = command_buffer + 4;
+        while (*path == ' ') path++;
+        
+        if (*path == '\0') {
+            brew_str("cat: missing operand\n");
+        } else {
+            size_t size = 0;
+            const char* content = fs_read_file_at_path(path, &size);
+            if (content) {
+                for (size_t i = 0; i < size; i++) {
+                    print_char(content[i]);
+                }
+                brew_str("\n");
+            } else {
+                brew_str("cat: cannot open '");
+                brew_str(path);
+                brew_str("': No such file or directory\n");
+            }
+        }
+    }
+    else if (strncmp_kernel(cmd_upper, "ECHO ", 5) == 0) {
+        const char* args = command_buffer + 5;
+        while (*args == ' ') args++;
+        
+        // Look for redirection operator >
+        char redirect_path[256] = {0};
+        const char* redirect_pos = args;
+        bool found_redirect = false;
+        int redirect_idx = 0;
+        
+        // Find the > character
+        while (*redirect_pos) {
+            if (*redirect_pos == '>') {
+                found_redirect = true;
+                redirect_pos++; // skip the >
+                while (*redirect_pos == ' ') redirect_pos++; // skip spaces
+                // Copy redirect path
+                redirect_idx = 0;
+                while (*redirect_pos && redirect_idx < 255) {
+                    redirect_path[redirect_idx++] = *redirect_pos;
+                    redirect_pos++;
+                }
+                redirect_path[redirect_idx] = '\0';
+                break;
+            }
+            redirect_pos++;
+        }
+        
+        if (found_redirect && redirect_path[0] != '\0') {
+            // Write to file
+            // Get the text to echo (everything before >)
+            char echo_text[256] = {0};
+            int text_idx = 0;
+            const char* text_ptr = args;
+            while (*text_ptr && *text_ptr != '>' && text_idx < 255) {
+                echo_text[text_idx++] = *text_ptr;
+                text_ptr++;
+            }
+            echo_text[text_idx] = '\0';
+            
+            // Trim trailing spaces from echo text
+            while (text_idx > 0 && echo_text[text_idx - 1] == ' ') {
+                echo_text[--text_idx] = '\0';
+            }
+            
+            if (!fs_write_file_at_path(redirect_path, echo_text, text_idx)) {
+                brew_str("echo: cannot write to '");
+                brew_str(redirect_path);
+                brew_str("'\n");
+            }
+        } else {
+            // Just print to console
+            brew_str("\n");
+            brew_str(args);
+            brew_str("\n");
+        }
+    }
     else if (strcmp_kernel(cmd_upper, "BLIND") == 0) {
         blindme();
     }    

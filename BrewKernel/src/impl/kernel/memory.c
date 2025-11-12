@@ -20,7 +20,7 @@
 
 // Memory management for file content using a free list allocator
 
-#define MEMORY_SIZE 1048576  // 1MB - file storage capacity (reasonable size for static array)
+#define MEMORY_SIZE 67108864  // 64MB - sufficient for DOOM WAD files and zone memory
 #define ALIGNMENT 8  // Align blocks to 8 bytes
 #define MIN_BLOCK_SIZE (sizeof(BlockHeader) + ALIGNMENT)
 
@@ -73,7 +73,17 @@ static void coalesce_blocks(void) {
     BlockHeader* current = (BlockHeader*)memory_pool;
     BlockHeader* end = (BlockHeader*)(memory_pool + MEMORY_SIZE);
     
-    while ((char*)current < (char*)end) {
+    int max_iterations = MEMORY_SIZE / sizeof(BlockHeader); // Safety limit
+    int iterations = 0;
+    
+    while ((char*)current < (char*)end && iterations < max_iterations) {
+        iterations++;
+        
+        // Safety check: block size must be reasonable
+        if (current->size == 0 || current->size > MEMORY_SIZE) {
+            break;  // Corrupted allocator state, stop
+        }
+        
         if (current->is_free) {
             // Check if next block is adjacent and free
             BlockHeader* next = (BlockHeader*)((char*)current + sizeof(BlockHeader) + current->size);
@@ -105,7 +115,7 @@ static void coalesce_blocks(void) {
 }
 
 void* fs_allocate(size_t size) {
-    if (size == 0) return NULL;
+    if (size == 0 || size > MEMORY_SIZE) return NULL;
     
     init_memory();
     
@@ -115,11 +125,19 @@ void* fs_allocate(size_t size) {
         size = MIN_BLOCK_SIZE - sizeof(BlockHeader);
     }
     
-    // Find a suitable free block
+    // Prevent requesting more than available
+    if (size > MEMORY_SIZE - sizeof(BlockHeader)) {
+        return NULL;
+    }
+    
+    // Find a suitable free block (limit iterations to prevent infinite loops)
     BlockHeader* prev = NULL;
     BlockHeader* current = free_list;
+    int max_iterations = MEMORY_SIZE / sizeof(BlockHeader);
+    int iterations = 0;
     
-    while (current) {
+    while (current && iterations < max_iterations) {
+        iterations++;
         if (current->is_free && current->size >= size) {
             // Found a suitable block
             current->is_free = 0;
@@ -144,10 +162,12 @@ void* fs_allocate(size_t size) {
     // Try coalescing and search again
     coalesce_blocks();
     
-    // Search again after coalescing
+    // Search again after coalescing (with iteration limit)
     prev = NULL;
     current = free_list;
-    while (current) {
+    iterations = 0;
+    while (current && iterations < max_iterations) {
+        iterations++;
         if (current->is_free && current->size >= size) {
             current->is_free = 0;
             if (prev) {

@@ -19,18 +19,22 @@
 #define APPS_DOOM_H
 
 #include "print.h"
+#include "APPS/DOOM/doomgeneric.h"
 
 static void doom() {
-    brew_str("\n");
-    brew_str("""______ _____ _____ __  ___ \n""");
-    brew_str("""| __  \\  _  |  _  |  \\ /  |\n""");
-    brew_str("""| | \\ | | | | | | | . V . |\n""");
-    brew_str("""| | / | \\_/ | \\_/ | |\\ /| |\n""");
-    brew_str("""| |/ / \\   / \\   /| | V | |\n""");
-    brew_str("""| ' /   \\_/   \\_/ \\_|   | |\n""");
-    brew_str("""|__/                    \\_|\n""");
-    brew_str("yes it's 'DOOM'. As in the text. \n");
-    brew_str("pretty please port DOOM for me <3 \n");
+	brew_str("\nLaunching DOOM (text-mode)...\n");
+	print_disable_cursor();
+
+	// Minimal argv
+	char* argv[] = { "doom" };
+	int argc = 1;
+
+	brew_str("Calling doomgeneric_Create...\n");
+	doomgeneric_Create(argc, argv);
+	
+	// If we reach here, something went wrong in doomgeneric_Create
+	brew_str("ERROR: doomgeneric_Create returned unexpectedly\n");
+	return;
 }
 
 #endif // APPS_DOOM_H

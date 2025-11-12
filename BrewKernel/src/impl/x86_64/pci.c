@@ -90,25 +90,32 @@ uint8_t pci_get_prog_if(uint8_t bus, uint8_t device, uint8_t function) {
 // Enumerate all PCI devices
 int pci_enumerate_devices(pci_device_t* devices, int max_devices) {
     int count = 0;
+    uint8_t bus;
+    uint8_t device;
+    uint8_t function;
+    uint8_t num_functions;
+    uint8_t header_type;
+    uint32_t config_val;
     
     // Scan all buses, devices, and functions
-    for (int bus = 0; bus < 256 && count < max_devices; bus++) {
-        for (int device = 0; device < 32 && count < max_devices; device++) {
+    for (bus = 0; bus < 256 && count < max_devices; bus++) {
+        for (device = 0; device < 32 && count < max_devices; device++) {
             // Check function 0 first
-            if (pci_device_exists((uint8_t)bus, (uint8_t)device, 0)) {
-                uint8_t header_type = (uint8_t)((pci_read_config((uint8_t)bus, (uint8_t)device, 0, 0x0C) >> 16) & 0xFF);
-                uint8_t num_functions = (header_type & 0x80) ? 8 : 1;  // Multi-function device?
+            if (pci_device_exists(bus, device, 0)) {
+                config_val = pci_read_config(bus, device, 0, 0x0C);
+                header_type = (uint8_t)((config_val >> 16) & 0xFF);
+                num_functions = (header_type & 0x80) ? 8 : 1;
                 
-                for (int function = 0; function < num_functions && count < max_devices; function++) {
-                    if (pci_device_exists((uint8_t)bus, (uint8_t)device, (uint8_t)function)) {
-                        devices[count].bus = (uint8_t)bus;
-                        devices[count].device = (uint8_t)device;
-                        devices[count].function = (uint8_t)function;
-                        devices[count].vendor_id = pci_get_vendor_id((uint8_t)bus, (uint8_t)device, (uint8_t)function);
-                        devices[count].device_id = pci_get_device_id((uint8_t)bus, (uint8_t)device, (uint8_t)function);
-                        devices[count].class_code = pci_get_class_code((uint8_t)bus, (uint8_t)device, (uint8_t)function);
-                        devices[count].subclass = pci_get_subclass((uint8_t)bus, (uint8_t)device, (uint8_t)function);
-                        devices[count].prog_if = pci_get_prog_if((uint8_t)bus, (uint8_t)device, (uint8_t)function);
+                for (function = 0; function < num_functions && count < max_devices; function++) {
+                    if (pci_device_exists(bus, device, function)) {
+                        devices[count].bus = bus;
+                        devices[count].device = device;
+                        devices[count].function = function;
+                        devices[count].vendor_id = pci_get_vendor_id(bus, device, function);
+                        devices[count].device_id = pci_get_device_id(bus, device, function);
+                        devices[count].class_code = pci_get_class_code(bus, device, function);
+                        devices[count].subclass = pci_get_subclass(bus, device, function);
+                        devices[count].prog_if = pci_get_prog_if(bus, device, function);
                         count++;
                     }
                 }

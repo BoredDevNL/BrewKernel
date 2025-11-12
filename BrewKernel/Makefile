@@ -22,6 +22,21 @@ kernel_object_files := $(patsubst src/impl/kernel/%.c, build/kernel/%.o, $(kerne
 fs_source_files := $(shell find src/intf -name *.c -not -path "*/APPS/*")
 fs_object_files := $(patsubst src/intf/%.c, build/intf/%.o, $(fs_source_files))
 
+# Select DOOM sources, excluding platform backends we don't use
+x_doom_source_files := $(shell find src/intf/APPS/DOOM -name *.c \
+	! -name 'doomgeneric_*.c' \
+	! -name 'i_sdl*.c' \
+	! -name 'i_allegro*.c' \
+	! -name 'doomgeneric_win.c' \
+	! -name 'doomgeneric_xlib.c' \
+	! -name 'doomgeneric_linuxvt.c' \
+	! -name 'doomgeneric_emscripten.c' \
+	; echo src/intf/APPS/DOOM/doomgeneric_brew.c)
+x_doom_object_files := $(patsubst src/intf/APPS/DOOM/%.c, build/intf/APPS/DOOM/%.o, $(x_doom_source_files))
+
+# Embedded DOOM.WAD file
+doom_wad_object_file := build/intf/APPS/DOOM/DOOM.WAD.o
+
 x86_64_c_source_files := $(shell find src/impl/x86_64 -name *.c)
 x86_64_c_object_files := $(patsubst src/impl/x86_64/%.c, build/x86_64/%.o, $(x86_64_c_source_files))
 
@@ -48,12 +63,22 @@ $(fs_object_files): build/intf/%.o : src/intf/%.c
 	mkdir -p $(dir $@) && \
 	x86_64-elf-gcc -c -I src/intf -ffreestanding -O0 $(patsubst build/intf/%.o, src/intf/%.c, $@) -o $@
 
+.PHONY: build-doom
+$(x_doom_object_files): build/intf/APPS/DOOM/%.o : src/intf/APPS/DOOM/%.c
+	mkdir -p $(dir $@) && \
+	x86_64-elf-gcc -c -I src/intf -I src/intf/APPS/DOOM -ffreestanding -O0 $(patsubst build/intf/APPS/DOOM/%.o, src/intf/APPS/DOOM/%.c, $@) -o $@
+
+# Embed DOOM.WAD binary data
+$(doom_wad_object_file): src/intf/APPS/DOOM/DOOM.WAD
+	mkdir -p $(dir $@) && \
+	cd src/intf/APPS/DOOM && x86_64-elf-objcopy -I binary -O elf64-x86-64 -B i386 DOOM.WAD $(abspath $(CURDIR)/$@)
+
 .PHONY: build-x86_64 clean-build
 clean-build:
 	find build -type f -delete
 
-build-x86_64: clean-build $(kernel_object_files) $(x86_64_object_files) $(fs_object_files)
+build-x86_64: clean-build $(kernel_object_files) $(x86_64_object_files) $(fs_object_files) $(x_doom_object_files) $(doom_wad_object_file)
 	mkdir -p dist/x86_64 && \
-	x86_64-elf-ld -n -o dist/x86_64/kernel.bin -T targets/x86_64/linker.ld $(kernel_object_files) $(x86_64_object_files) $(fs_object_files) && \
+	x86_64-elf-ld -n -o dist/x86_64/kernel.bin -T targets/x86_64/linker.ld $(kernel_object_files) $(x86_64_object_files) $(fs_object_files) $(x_doom_object_files) $(doom_wad_object_file) && \
 	cp dist/x86_64/kernel.bin targets/x86_64/iso/boot/kernel.bin && \
 	grub-mkrescue /usr/lib/grub/i386-pc -o dist/x86_64/kernel.iso targets/x86_64/iso
