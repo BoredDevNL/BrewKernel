@@ -33,7 +33,6 @@
 #include "APPS/man.h"
 #include "APPS/license.h"
 #include "APPS/uptime.h"
-#include "APPS/doom.h"
 #include "APPS/blind.h"
 #include "APPS/readtheman.h"
 #include "APPS/beep.h"
@@ -220,9 +219,6 @@ static void process_command(void) {
     }
     else if (strcmp_kernel(cmd_upper, "MEMORY") == 0) {
         display_memory();
-    }
-    else if (strcmp_kernel(cmd_upper, "DOOM") == 0) {
-        doom();
     }
     else if (strncmp_kernel(cmd_upper, "RM ", 3) == 0) {
         const char* path = command_buffer + 3;

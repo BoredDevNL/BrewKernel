@@ -114,7 +114,6 @@ const char* manual_pages[] = {
     "         Inspired by GNU/LINUX",
     "",    
     "UPTIME: Shows how long the system has been running since boot.",
-    "DOOM: omg DOOM?!",
     "BEEP: Makes a beep sound using the PC speaker.",
     "--- End of Manual ---"
 };
