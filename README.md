@@ -8,13 +8,11 @@ It features a custom bootloader, VGA text mode output with customizable colors, 
 <sub><i>Note: This screenshot may be outdated.</i></sub>
 ## Features
 - Basic Networking 
-- Basic ramdisk-like filesystem
+- Basic ramdisk filesystem
 - 64-bit long mode support
 - Multiboot2 compliant
-- Custom VGA text mode driver with 16-color palette support
-- Basic Interrupt Descriptor Table (IDT) implementation
-- ASCII character display demo
-- Integer output support with signed and unsigned number handling
+- Custom VGA text mode driver with 16-color palette
+- IDT
 - Ability to run on actual x86_64 hardware
 - CLI
 
