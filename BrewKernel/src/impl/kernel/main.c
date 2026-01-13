@@ -41,6 +41,7 @@
 #include "APPS/cowsay.h"
 #include "APPS/brewer.h"
 #include "APPS/memory.h"
+#include "APPS/about_dump.h"
 #include "memory.h"
 #include "filesys.h"
 #include "pic.h"
@@ -51,6 +52,7 @@
 #include "e1000.h"
 #include "network_cli.h"
 #include "shell_cli.h"
+#include "APPS/calc.h"
 
 // External assembly function to initialize IDT
 extern void init_idt(void);
@@ -204,6 +206,9 @@ static void process_command(void) {
     else if (strcmp_kernel(cmd_upper, "ABOUT") == 0) {
         display_about();
     }
+    else if (strcmp_kernel(cmd_upper, "CALC") == 0) {
+        calc_cmd();
+    }    
     else if (strcmp_kernel(cmd_upper, "MAN") == 0) {
         show_manual();
         print_clear();
@@ -506,6 +511,7 @@ void kernel_main(void* multiboot_info) {
     sys_memory_init(multiboot_info);
     fs_init();
     init_uptime();
+    create_log_txt_file();  // Generate system log at boot
     // these colors might not be accurate since other parts can modify the palette.. (i know this is cursed but i'm lazy and it works)
     print_set_palette_color(1, 0, 113, 255);   // Blue
     print_set_palette_color(2, 245, 194, 45);   // Yellow
